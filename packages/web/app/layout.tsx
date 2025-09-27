@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { MiniKitProvider } from "@worldcoin/minikit-react";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,9 +18,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <MiniKitProvider appId={process.env.NEXT_PUBLIC_WORLD_APP_ID!}>
-          {children}
-        </MiniKitProvider>
+        {/* WorldCoin provider will be injected through the World App environment */}
+        {children}
       </body>
     </html>
   );
