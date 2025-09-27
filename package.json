@@ -4,10 +4,23 @@
   "description": "FitMint fitness app for the World Build 2.0 Hackathon",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev:web": "cd packages/web && pnpm dev",
+    "dev:mobile": "cd packages/mobile/FitMintCompanion && pnpm android",
+    "build:web": "cd packages/web && pnpm build",
+    "deploy": "cd packages/web && vercel --prod",
+    "test": "pnpm -r test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.15.1"
+  "packageManager": "pnpm@10.15.1",
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "nativewind": "^4.2.1",
+    "react-native-health-connect": "^3.4.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17",
+    "@types/node": "^20.0.0"
+  }
 }
