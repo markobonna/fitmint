@@ -1,0 +1,303 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String          @id @default(uuid())
+  worldId          String          @unique
+  username         String          @unique
+  email            String?
+  avatarUrl        String?
+  verified         Boolean         @default(false)
+  verifiedAt       DateTime?
+  
+  // Fitness stats
+  totalClaimed     Float           @default(0)
+  streakDays       Int             @default(0)
+  bestStreak       Int             @default(0)
+  lastClaimTime    DateTime?
+  
+  // Profile settings
+  notificationsEnabled Boolean      @default(true)
+  shareDataEnabled     Boolean      @default(true)
+  
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  
+  // Relationships
+  claims           DailyClaim[]
+  healthData       HealthData[]
+  challenges       ChallengeParticipation[]
+  notifications    Notification[]
+  
+  @@index([worldId])
+  @@index([username])
+  @@index([createdAt])
+}
+
+model DailyClaim {
+  id               String          @id @default(uuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Health metrics
+  steps            Int
+  exerciseMinutes  Int
+  calories         Int
+  distance         Float?
+  heartRate        Int?
+  
+  // Reward information
+  rewardAmount     Float
+  transactionHash  String?
+  contractAddress  String?
+  blockNumber      BigInt?
+  
+  // Metadata
+  deviceId         String?
+  dataSource       String          @default("health_connect") // health_connect, manual, wearable
+  
+  claimedAt        DateTime        @default(now())
+  
+  @@index([userId, claimedAt])
+  @@index([claimedAt])
+  @@unique([userId, claimedAt(sort: Desc)])
+}
+
+model HealthData {
+  id               String          @id @default(uuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Raw health metrics
+  steps            Int
+  exerciseMinutes  Int             @default(0)
+  calories         Int             @default(0)
+  distance         Float           @default(0)
+  heartRate        Int?
+  
+  // Additional metrics
+  activeMinutes    Int             @default(0)
+  floors           Int             @default(0)
+  sleepHours       Float?
+  
+  // Data provenance
+  source           String          @default("health_connect") // health_connect, manual, apple_health, google_fit
+  deviceId         String?
+  rawData          Json?           // Store raw sensor data if needed
+  
+  recordedAt       DateTime        // When the activity actually happened
+  syncedAt         DateTime        @default(now()) // When we received the data
+  
+  @@index([userId, recordedAt])
+  @@index([recordedAt])
+  @@index([source])
+}
+
+model Challenge {
+  id               String          @id @default(uuid())
+  name             String
+  description      String?
+  imageUrl         String?
+  
+  // Challenge parameters
+  type             ChallengeType   @default(STEPS)
+  targetValue      Int             // Steps, minutes, calories, etc.
+  duration         Int             // Duration in seconds
+  
+  // Timing
+  startTime        DateTime
+  endTime          DateTime
+  
+  // Rewards
+  prizePool        Float
+  entryFee         Float           @default(0)
+  winnerCount      Int             @default(1) // How many winners
+  
+  // Status
+  isActive         Boolean         @default(true)
+  isPublic         Boolean         @default(true)
+  maxParticipants  Int?
+  
+  // Results
+  winnerId         String?
+  completedAt      DateTime?
+  
+  // Relationships
+  participants     ChallengeParticipation[]
+  
+  createdBy        String          // Admin user ID
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  
+  @@index([isActive, endTime])
+  @@index([type, startTime])
+  @@index([createdAt])
+}
+
+model ChallengeParticipation {
+  id               String          @id @default(uuid())
+  challengeId      String
+  challenge        Challenge       @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Progress tracking
+  currentProgress  Int             @default(0)
+  completed        Boolean         @default(false)
+  completedAt      DateTime?
+  finalRank        Int?
+  
+  // Rewards
+  rewardEarned     Float           @default(0)
+  paidOut          Boolean         @default(false)
+  
+  joinedAt         DateTime        @default(now())
+  
+  @@unique([challengeId, userId])
+  @@index([challengeId, finalRank])
+  @@index([userId, joinedAt])
+}
+
+model Notification {
+  id               String          @id @default(uuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type             NotificationType
+  title            String
+  body             String
+  imageUrl         String?
+  
+  // Delivery
+  read             Boolean         @default(false)
+  readAt           DateTime?
+  
+  // Optional action data
+  actionUrl        String?         // Deep link or URL to open
+  actionData       Json?           // Additional context data
+  
+  // Scheduling
+  scheduledFor     DateTime?       // For future notifications
+  sentAt           DateTime?       // When actually delivered
+  
+  createdAt        DateTime        @default(now())
+  
+  @@index([userId, read, createdAt])
+  @@index([type, scheduledFor])
+  @@index([createdAt])
+}
+
+model SystemMetric {
+  id               String          @id @default(uuid())
+  
+  // Metric identification
+  name             String          // e.g., "daily_active_users", "total_rewards_distributed"
+  category         String          // e.g., "users", "rewards", "system"
+  
+  // Values
+  value            Float
+  previousValue    Float?
+  changePercent    Float?
+  
+  // Dimensions
+  timeframe        String          @default("daily") // daily, weekly, monthly, yearly
+  date             DateTime        // The date this metric represents
+  
+  // Metadata
+  metadata         Json?           // Additional context
+  
+  recordedAt       DateTime        @default(now())
+  
+  @@index([name, date])
+  @@index([category, timeframe, date])
+  @@unique([name, timeframe, date])
+}
+
+model SystemAlert {
+  id               String          @id @default(uuid())
+  
+  type             AlertType
+  severity         AlertSeverity   @default(MEDIUM)
+  title            String
+  message          String
+  
+  // Context
+  source           String?         // Component that generated the alert
+  metadata         Json?           // Additional context data
+  
+  // Status
+  resolved         Boolean         @default(false)
+  resolvedAt       DateTime?
+  resolvedBy       String?         // Admin user ID
+  
+  createdAt        DateTime        @default(now())
+  
+  @@index([type, severity, resolved])
+  @@index([createdAt])
+}
+
+model AdminAction {
+  id               String          @id @default(uuid())
+  
+  adminId          String          // Admin user ID
+  action           String          // e.g., "pause_system", "adjust_rewards", "ban_user"
+  targetId         String?         // ID of target resource (user, challenge, etc.)
+  targetType       String?         // Type of target resource
+  
+  // Change details
+  previousValue    Json?           // Previous state
+  newValue         Json?           // New state
+  reason           String?         // Reason for the action
+  
+  // Metadata
+  ipAddress        String?
+  userAgent        String?
+  
+  createdAt        DateTime        @default(now())
+  
+  @@index([adminId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+}
+
+// Enums
+enum ChallengeType {
+  STEPS
+  EXERCISE_MINUTES
+  CALORIES
+  DISTANCE
+  STREAK
+}
+
+enum NotificationType {
+  ACHIEVEMENT
+  REMINDER
+  CHALLENGE
+  REWARD
+  SYSTEM
+  SOCIAL
+}
+
+enum AlertType {
+  FRAUD_DETECTION
+  SYSTEM_ERROR
+  HIGH_RESOURCE_USAGE
+  FAILED_TRANSACTION
+  USER_REPORT
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
