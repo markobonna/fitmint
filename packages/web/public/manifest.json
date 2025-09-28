@@ -1,7 +1,7 @@
 {
   "name": "FitMint",
   "short_name": "FitMint",
-  "description": "Exercise to earn WLD daily",
+  "description": "Exercise to earn WLD rewards daily",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -17,5 +17,25 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "world_app": {
+    "mini_app_id": "fitmint",
+    "required_permissions": [
+      "verify",
+      "pay",
+      "share"
+    ],
+    "developer_id": "markobonna",
+    "category": "health",
+    "support_url": "https://github.com/markobonna/fitmint",
+    "privacy_policy_url": "https://github.com/markobonna/fitmint/blob/main/PRIVACY.md",
+    "terms_url": "https://github.com/markobonna/fitmint/blob/main/TERMS.md",
+    "localized_metadata": {
+      "en": {
+        "name": "FitMint",
+        "subtitle": "Exercise to Earn",
+        "description": "Earn WLD rewards for daily exercise with our human-verified fitness app"
+      }
+    }
+  }
 }

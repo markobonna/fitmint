@@ -1,0 +1,14 @@
+{
+  "buildCommand": "cd packages/web && pnpm build",
+  "outputDirectory": "packages/web/.next",
+  "framework": "nextjs",
+  "rewrites": [
+    { 
+      "source": "/(.*)", 
+      "destination": "/packages/web/$1" 
+    }
+  ],
+  "github": {
+    "silent": true
+  }
+}

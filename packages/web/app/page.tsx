@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 // Import Lucide React icons
-import { Activity, Trophy, Users, TrendingUp } from 'lucide-react';
+import { Activity, Trophy, Users, TrendingUp, UserRoundCog, X } from 'lucide-react';
+import { MockUserSelection } from './api/user-profile/route';
 
 // Define interfaces for WorldCoin types
 interface WorldCoinUser {
@@ -69,6 +70,11 @@ export default function Home() {
   // Access worldCoin properties with fallbacks
   const [worldCoinUser, setWorldCoinUser] = useState<WorldCoinUser | null>(null);
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
+
+  // State for mock user selection
+  const [showMockUserSelector, setShowMockUserSelector] = useState(false);
+  const [availableMockUsers, setAvailableMockUsers] = useState<MockUserSelection[]>([]);
+  const [activeMockUser, setActiveMockUser] = useState<string | null>(null);
   
   // Initialize WorldCoin connection
   useEffect(() => {
@@ -76,6 +82,22 @@ export default function Home() {
     if (typeof window !== 'undefined' && window.WorldCoin) {
       setIsInstalled(!!window.WorldCoin.isInstalled);
       setWorldCoinUser(window.WorldCoin.user || { username: 'anonymous' });
+    }
+
+    // Load available mock users
+    fetch('/api/user-profile?listMockUsers=true')
+      .then(res => res.json())
+      .then(data => {
+        if (data.availableMockUsers) {
+          setAvailableMockUsers(data.availableMockUsers);
+        }
+      })
+      .catch(err => console.error('Failed to load mock users:', err));
+
+    // Check for active mock user in session storage
+    const savedMockUser = sessionStorage.getItem('activeMockUser');
+    if (savedMockUser) {
+      setActiveMockUser(savedMockUser);
     }
   }, []);
   const [healthData, setHealthData] = useState<HealthData>({
@@ -103,6 +125,16 @@ export default function Home() {
     const interval = setInterval(fetchHealthData, 30000); // Every 30 seconds
     return () => clearInterval(interval);
   }, []);
+
+  // Effect to update data when mock user changes
+  useEffect(() => {
+    if (activeMockUser) {
+      fetchUserProfile();
+      fetchHealthData();
+      // Save to session storage
+      sessionStorage.setItem('activeMockUser', activeMockUser);
+    }
+  }, [activeMockUser]);
 
   useEffect(() => {
     // Check if user can claim
@@ -133,7 +165,11 @@ export default function Home() {
     try {
       // In production, this would fetch from your backend
       // which receives data from the React Native app
-      const response = await fetch('/api/health-data', {
+      const url = activeMockUser 
+        ? `/api/health-data?mockUser=${activeMockUser}`
+        : '/api/health-data';
+
+      const response = await fetch(url, {
         headers: {
           'X-User-Id': worldCoinUser?.username || 'anonymous',
         },
@@ -150,7 +186,11 @@ export default function Home() {
 
   const fetchUserProfile = async () => {
     try {
-      const response = await fetch('/api/user-profile', {
+      const url = activeMockUser 
+        ? `/api/user-profile?mockUser=${activeMockUser}`
+        : '/api/user-profile';
+
+      const response = await fetch(url, {
         headers: {
           'X-User-Id': worldCoinUser?.username || 'anonymous',
         },
@@ -296,6 +336,28 @@ export default function Home() {
   const stepProgress = Math.min((healthData.steps / STEP_GOAL) * 100, 100);
   const exerciseProgress = Math.min((healthData.exerciseMinutes / EXERCISE_GOAL) * 100, 100);
 
+  // Handle mock user selection
+  const selectMockUser = (userId: string) => {
+    setActiveMockUser(userId);
+    setShowMockUserSelector(false);
+  };
+
+  // Clear mock user
+  const clearMockUser = () => {
+    setActiveMockUser(null);
+    sessionStorage.removeItem('activeMockUser');
+    // Reset to default data
+    fetchUserProfile();
+    fetchHealthData();
+  };
+
+  // Get active mock user name
+  const getActiveMockUserName = () => {
+    if (!activeMockUser) return null;
+    const user = availableMockUsers.find(u => u.id === activeMockUser);
+    return user?.name || 'Demo User';
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       {/* Header */}
@@ -316,9 +378,66 @@ export default function Home() {
               <p className="text-xs text-gray-500">Streak</p>
               <p className="text-sm font-bold">🔥 {userProfile.streak}</p>
             </div>
+            <div>
+              <button 
+                onClick={() => setShowMockUserSelector(true)}
+                className="p-1 rounded-full hover:bg-gray-100"
+                title="Select Demo User"
+              >
+                <UserRoundCog className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
           </div>
         </div>
       </header>
+      
+      {/* Mock User Selection Modal */}
+      {showMockUserSelector && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-5 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Select Demo User</h3>
+              <button 
+                onClick={() => setShowMockUserSelector(false)}
+                className="p-1 rounded-full hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-3 mb-5">
+              {availableMockUsers.map(user => (
+                <button
+                  key={user.id}
+                  onClick={() => selectMockUser(user.id)}
+                  className={`w-full p-3 rounded-xl border text-left ${activeMockUser === user.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                >
+                  <p className="font-medium">{user.name}</p>
+                  <p className="text-sm text-gray-500">{user.description}</p>
+                </button>
+              ))}
+            </div>
+            
+            {activeMockUser && (
+              <button
+                onClick={clearMockUser}
+                className="w-full py-2 border border-red-200 text-red-600 rounded-xl hover:bg-red-50"
+              >
+                Clear Selection
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Active Mock User Indicator */}
+      {activeMockUser && (
+        <div className="bg-yellow-50 border-b border-yellow-100 py-1 px-4">
+          <p className="text-xs text-center text-yellow-800">
+            <span className="font-bold">Demo Mode:</span> Browsing as {getActiveMockUserName()}
+          </p>
+        </div>
+      )}
 
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
         {/* Verification Banner */}

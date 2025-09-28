@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Modal } from 'react-native';
 import {
   SafeAreaView,
   ScrollView,
@@ -35,6 +36,49 @@ interface HealthData {
   lastSync: string;
 }
 
+// Define demo user profiles with mock data
+interface MockUser {
+  name: string;
+  description: string;
+  healthData: HealthData;
+}
+
+const DEMO_USERS: Record<string, MockUser> = {
+  'casual': {
+    name: 'Casual Walker',
+    description: 'Someone who walks occasionally',
+    healthData: {
+      steps: 5432,
+      exerciseMinutes: 15,
+      calories: 220,
+      distance: 3500,
+      lastSync: new Date().toISOString(),
+    }
+  },
+  'athlete': {
+    name: 'Active Athlete',
+    description: 'Fitness enthusiast who exercises daily',
+    healthData: {
+      steps: 12750,
+      exerciseMinutes: 65,
+      calories: 850,
+      distance: 9200,
+      lastSync: new Date().toISOString(),
+    }
+  },
+  'beginner': {
+    name: 'Fitness Beginner',
+    description: 'Just starting their fitness journey',
+    healthData: {
+      steps: 3150,
+      exerciseMinutes: 10,
+      calories: 125,
+      distance: 2100,
+      lastSync: new Date().toISOString(),
+    }
+  },
+};
+
 const App = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [hasPermissions, setHasPermissions] = useState(false);
@@ -47,9 +91,27 @@ const App = () => {
   });
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  
+  // Demo mode states
+  const [demoMode, setDemoMode] = useState(false);
+  const [activeDemoUser, setActiveDemoUser] = useState<string | null>(null);
+  const [showDemoSelector, setShowDemoSelector] = useState(false);
 
   useEffect(() => {
     initializeHealthConnect();
+    
+    // Check if demo mode was previously enabled
+    AsyncStorage.getItem('demo_mode').then(value => {
+      if (value === 'true') {
+        setDemoMode(true);
+        AsyncStorage.getItem('active_demo_user').then(user => {
+          if (user && DEMO_USERS[user]) {
+            setActiveDemoUser(user);
+            setHealthData(DEMO_USERS[user].healthData);
+          }
+        });
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -129,6 +191,38 @@ const App = () => {
     }
   };
 
+  // Toggle demo mode
+  const toggleDemoMode = async (enabled: boolean) => {
+    setDemoMode(enabled);
+    await AsyncStorage.setItem('demo_mode', enabled ? 'true' : 'false');
+    
+    if (!enabled) {
+      setActiveDemoUser(null);
+      await AsyncStorage.removeItem('active_demo_user');
+      if (hasPermissions) {
+        fetchHealthData();
+      } else {
+        setHealthData({
+          steps: 0,
+          exerciseMinutes: 0,
+          calories: 0,
+          distance: 0,
+          lastSync: new Date().toISOString(),
+        });
+      }
+    }
+  };
+  
+  // Select a demo user
+  const selectDemoUser = async (userId: string) => {
+    if (DEMO_USERS[userId]) {
+      setActiveDemoUser(userId);
+      setHealthData(DEMO_USERS[userId].healthData);
+      await AsyncStorage.setItem('active_demo_user', userId);
+      setShowDemoSelector(false);
+    }
+  };
+  
   const fetchHealthData = async () => {
     try {
       setSyncing(true);
@@ -265,15 +359,63 @@ const App = () => {
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      
+      {/* Demo User Selection Modal */}
+      <Modal
+        visible={showDemoSelector}
+        animationType="slide"
+        transparent={true}
+      >
+        <View className="flex-1 justify-center items-center bg-black/50">
+          <View className="bg-white rounded-2xl p-5 w-4/5 max-w-md">
+            <Text className="text-xl font-bold mb-4">Select Demo User</Text>
+            
+            {Object.entries(DEMO_USERS).map(([id, user]) => (
+              <TouchableOpacity
+                key={id}
+                onPress={() => selectDemoUser(id)}
+                className={`p-4 border rounded-xl mb-2 ${activeDemoUser === id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
+              >
+                <Text className="font-medium text-base">{user.name}</Text>
+                <Text className="text-sm text-gray-500">{user.description}</Text>
+              </TouchableOpacity>
+            ))}
+            
+            <TouchableOpacity
+              onPress={() => setShowDemoSelector(false)}
+              className="mt-4 bg-gray-200 p-3 rounded-xl"
+            >
+              <Text className="text-center font-medium">Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <View className="bg-white border-b border-gray-200 px-4 py-3">
-        <Text className="text-2xl font-bold text-center">
-          FitMint Companion
-        </Text>
-        <Text className="text-sm text-gray-500 text-center mt-1">
-          Syncing health data for World App rewards
+        <View className="flex-row justify-between items-center">
+          <Text className="text-2xl font-bold">
+            FitMint Companion
+          </Text>
+          <TouchableOpacity 
+            onPress={() => setShowDemoSelector(true)}
+            className="bg-gray-100 px-3 py-1 rounded-full"
+          >
+            <Text className="text-sm font-medium text-gray-700">Demo Mode</Text>
+          </TouchableOpacity>
+        </View>
+        <Text className="text-sm text-gray-500 mt-1">
+          {demoMode ? '🎮 Demo mode active' : 'Syncing health data for World App rewards'}
         </Text>
       </View>
+      
+      {/* Demo Mode Indicator */}
+      {demoMode && activeDemoUser && (
+        <View className="bg-yellow-100 px-4 py-2">
+          <Text className="text-yellow-800 text-xs text-center">
+            Demo Mode: {DEMO_USERS[activeDemoUser].name}
+          </Text>
+        </View>
+      )}
 
       <ScrollView className="flex-1 px-4 py-4">
         {/* Connection Status */}
@@ -344,7 +486,13 @@ const App = () => {
         <View className="bg-white rounded-2xl p-4 mb-4 border border-gray-100">
           <View className="flex-row items-center justify-between mb-3">
             <Text className="text-lg font-semibold">Today's Activity</Text>
-            {syncing && <ActivityIndicator size="small" color="#3B82F6" />}
+            {demoMode ? (
+              <View className="bg-yellow-100 px-2 py-1 rounded-full">
+                <Text className="text-xs text-yellow-800">Demo Data</Text>
+              </View>
+            ) : (
+              syncing && <ActivityIndicator size="small" color="#3B82F6" />
+            )}
           </View>
 
           <View className="space-y-3">
@@ -377,15 +525,26 @@ const App = () => {
             </View>
           </View>
 
-          <TouchableOpacity
-            onPress={fetchHealthData}
-            disabled={syncing}
-            className="mt-4 bg-gray-100 rounded-xl py-3"
-          >
-            <Text className="text-gray-700 text-center font-medium">
-              {syncing ? 'Syncing...' : 'Refresh Data'}
-            </Text>
-          </TouchableOpacity>
+          {demoMode ? (
+            <TouchableOpacity
+              onPress={() => toggleDemoMode(false)}
+              className="mt-4 bg-red-100 rounded-xl py-3"
+            >
+              <Text className="text-red-700 text-center font-medium">
+                Exit Demo Mode
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={fetchHealthData}
+              disabled={syncing}
+              className="mt-4 bg-gray-100 rounded-xl py-3"
+            >
+              <Text className="text-gray-700 text-center font-medium">
+                {syncing ? 'Syncing...' : 'Refresh Data'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Open Mini App */}
@@ -400,20 +559,58 @@ const App = () => {
             Claim your rewards
           </Text>
         </TouchableOpacity>
-
         {/* Info */}
         <View className="bg-blue-50 rounded-2xl p-4 mb-4">
           <Text className="text-blue-900 font-semibold mb-2">How it works</Text>
           <Text className="text-blue-700 text-sm leading-5">
-            1. This app syncs your health data from Google Fit{'\n'}
-            2. Data is sent securely to FitMint servers{'\n'}
-            3. Open FitMint in World App to claim WLD rewards{'\n'}
+            1. This app syncs your health data from Google Fit{"\n"}
+            2. Data is sent securely to FitMint servers{"\n"}
+            3. Open FitMint in World App to claim WLD rewards{"\n"}
             4. Earn 1 WLD daily for 10,000 steps or 30 min exercise
           </Text>
         </View>
+        
+        {/* Demo Mode Button */}
+        {!demoMode && (
+          <TouchableOpacity
+            onPress={() => toggleDemoMode(true)}
+            className="bg-gray-200 rounded-2xl p-4 mb-4 border border-gray-300"
+          >
+            <Text className="text-center font-medium text-gray-700">Enable Demo Mode</Text>
+            <Text className="text-center text-sm text-gray-500 mt-1">
+              Try the app with simulated fitness data
+            </Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Demo Mode Indicator */}
+        {demoMode && (
+          <View className="bg-yellow-100 px-4 py-2">
+            <Text className="text-yellow-800 text-xs text-center">
+              Demo Mode: Simulated fitness data
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-export default App;
+const DEMO_USERS = {
+  user1: {
+    name: 'John Doe',
+    description: 'Average fitness level',
+    steps: 10000,
+    exerciseMinutes: 30,
+    calories: 2000,
+    distance: 5000,
+  },
+  user2: {
+    name: 'Jane Doe',
+    description: 'High fitness level',
+    steps: 20000,
+    exerciseMinutes: 60,
+    calories: 4000,
+    distance: 10000,
+  },
+};
