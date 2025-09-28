@@ -1,3 +1,5 @@
+Hello
+
 # FitMint - Exercise to Earn WLD
 
 FitMint is a revolutionary health & fitness mini app for World App that incentivizes daily exercise through crypto rewards. By leveraging World ID's proof-of-personhood and Android Health Connect's real-time health data, FitMint creates a sybil-resistant exercise-to-earn ecosystem where verified humans can claim daily WLD rewards for meeting fitness goals.
